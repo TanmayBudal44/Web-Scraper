@@ -9,6 +9,7 @@ import feedparser
 from sklearn.feature_extraction.text import TfidfVectorizer
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
+from urllib.parse import quote
 
 # ---------------- UI CONFIG ----------------
 st.set_page_config(
@@ -23,17 +24,21 @@ st.caption("RSS Feeds • NLP (TF-IDF) • WordCloud Visualization")
 # ---------------- RSS FETCH FUNCTIONS ----------------
 
 def fetch_reddit_posts(query, limit):
+    query = quote(query)
     feed = feedparser.parse(f"https://www.reddit.com/search.rss?q={query}")
     return [entry.title for entry in feed.entries[:limit]]
 
 def fetch_facebook_posts(query, limit):
+    query = quote(query)
     feed = feedparser.parse(f"https://www.reddit.com/search.rss?q={query}&sort=top")
+
     posts = []
     for entry in feed.entries[:limit]:
         posts.append(entry.title + " " + entry.get("summary", ""))
     return posts
 
 def fetch_twitter_posts(query, limit):
+    query = quote(query)
     feed = feedparser.parse(f"https://www.reddit.com/search.rss?q={query}&sort=new")
     return [entry.title for entry in feed.entries[:limit]]
 
@@ -66,7 +71,7 @@ def common_ui(platform):
     with col1:
         topic = st.text_input(
             f"Enter topic for {platform}",
-            placeholder="e.g. AI, Elections, Football",
+            placeholder="e.g. AI, Elden Ring, Elections",
             key=f"topic_{platform}"
         )
 
