@@ -20,80 +20,129 @@ st.set_page_config(
 st.title("📊 Trending Topics WordCloud Generator")
 st.caption("Free APIs • NLP (TF-IDF) • WordCloud Visualization")
 
-# ---------------- FUNCTIONS ----------------
-def fetch_reddit_posts(query, limit):
-    url = f"https://www.reddit.com/search.json?q={query}&limit={limit}"
-    headers = {"User-Agent": "StreamlitTrendingApp/1.0"}
-    response = requests.get(url, headers=headers)
-    response.raise_for_status()
-    data = response.json()
-    return [post["data"]["title"] for post in data["data"]["children"]]
+# ---------------- DATA FETCH FUNCTIONS ----------------
 
-def generate_wordcloud(texts):
-    vectorizer = TfidfVectorizer(stop_words="english")
+def fetch_reddit_posts(query, limit):
+    url = "https://api.reddit.com/search"
+    headers = {"User-Agent": "Mozilla/5.0 (StreamlitApp/1.0)"}
+    params = {"q": query, "limit": min(limit, 100), "sort": "hot"}
+
+    r = requests.get(url, headers=headers, params=params)
+    r.raise_for_status()
+    data = r.json()
+
+    return [p["data"]["title"] for p in data["data"]["children"]]
+
+
+def fetch_facebook_posts(query, limit):
+    url = "https://api.reddit.com/search"
+    headers = {"User-Agent": "Mozilla/5.0 (StreamlitApp/1.0)"}
+    params = {"q": query, "limit": min(limit, 100), "sort": "top", "t": "week"}
+
+    r = requests.get(url, headers=headers, params=params)
+    r.raise_for_status()
+    data = r.json()
+
+    posts = []
+    for p in data["data"]["children"]:
+        title = p["data"]["title"]
+        body = p["data"].get("selftext", "")
+        posts.append(f"{title} {body}")
+
+    return posts
+
+
+def fetch_twitter_posts(query, limit):
+    url = "https://api.reddit.com/search"
+    headers = {"User-Agent": "Mozilla/5.0 (StreamlitApp/1.0)"}
+    params = {"q": query, "limit": min(limit, 100), "sort": "new"}
+
+    r = requests.get(url, headers=headers, params=params)
+    r.raise_for_status()
+    data = r.json()
+
+    return [p["data"]["title"] for p in data["data"]["children"]]
+
+# ---------------- WORDCLOUD FUNCTION ----------------
+
+def generate_wordcloud_from_text(texts):
+    vectorizer = TfidfVectorizer(stop_words="english", max_features=200)
     tfidf_matrix = vectorizer.fit_transform(texts)
 
-    tfidf_df = pd.DataFrame(
-        tfidf_matrix.toarray(),
-        columns=vectorizer.get_feature_names_out()
-    )
+    scores = tfidf_matrix.sum(axis=0).A1
+    words = vectorizer.get_feature_names_out()
+    word_freq = dict(zip(words, scores))
 
-    scores = tfidf_df.sum().sort_values(ascending=False)
-    return dict(scores.head(100))
+    wc = WordCloud(
+        width=1000,
+        height=500,
+        background_color="white"
+    ).generate_from_frequencies(word_freq)
 
-# ---------------- TABS ----------------
-tab1, tab2, tab3 = st.tabs(["📘 Facebook", "👽 Reddit", "🐦 Twitter"])
+    return wc
 
-def common_ui(platform_name):
+# ---------------- COMMON UI FUNCTION ----------------
+
+def common_ui(platform):
     col1, col2 = st.columns([3, 1])
 
     with col1:
-        topic = st.text_input(f"Enter topic for {platform_name}", placeholder="e.g. AI, Elections, Football")
+        topic = st.text_input(
+            f"Enter topic for {platform}",
+            placeholder="e.g. AI, Elections, Football",
+            key=f"topic_{platform}"
+        )
 
     with col2:
-        word_limit = st.slider(
+        limit = st.slider(
             "Number of posts",
             min_value=500,
             max_value=5000,
             step=500,
-            value=1000
+            value=1000,
+            key=f"limit_{platform}"
         )
 
-    if st.button(f"Generate WordCloud ({platform_name})"):
+    if st.button(
+        f"Generate WordCloud ({platform})",
+        key=f"btn_{platform}"
+    ):
         if not topic.strip():
             st.warning("Please enter a topic.")
             return
 
-        with st.spinner("Fetching data & generating wordcloud..."):
+        with st.spinner("Fetching data and generating wordcloud..."):
             try:
-                posts = fetch_reddit_posts(topic, word_limit)
+                if platform == "Facebook":
+                    texts = fetch_facebook_posts(topic, limit)
+                elif platform == "Twitter":
+                    texts = fetch_twitter_posts(topic, limit)
+                else:
+                    texts = fetch_reddit_posts(topic, limit)
 
-                if len(posts) < 10:
+                if len(texts) < 5:
                     st.error("Not enough data found.")
                     return
 
-                word_freq = generate_wordcloud(posts)
+                wc = generate_wordcloud_from_text(texts)
 
-                wc = WordCloud(
-                    width=1000,
-                    height=500,
-                    background_color="white"
-                ).generate_from_frequencies(word_freq)
-
-                fig, ax = plt.subplots(figsize=(12,6))
+                fig, ax = plt.subplots(figsize=(12, 6))
                 ax.imshow(wc, interpolation="bilinear")
                 ax.axis("off")
 
-                st.success(f"WordCloud generated for '{topic}' on {platform_name}")
+                st.success(f"WordCloud generated for '{topic}' on {platform}")
                 st.pyplot(fig)
 
             except Exception as e:
                 st.error(f"Error: {e}")
 
-# ---------------- TAB CONTENT ----------------
+# ---------------- TABS ----------------
+
+tab1, tab2, tab3 = st.tabs(["📘 Facebook", "👽 Reddit", "🐦 Twitter"])
+
 with tab1:
     st.subheader("📘 Facebook Trending Topics")
-    st.info("Using public discussion signals (simulated via Reddit search)")
+    st.info("Simulated using public long-form discussion data")
     common_ui("Facebook")
 
 with tab2:
@@ -103,7 +152,7 @@ with tab2:
 
 with tab3:
     st.subheader("🐦 Twitter Trending Topics")
-    st.info("Simulated Twitter trends using public Reddit search")
+    st.info("Simulated using fast-moving public discussions")
     common_ui("Twitter")
 
 # ---------------- FOOTER ----------------
