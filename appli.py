@@ -1,11 +1,11 @@
 # =========================================
 # STREAMLIT TRENDING TOPICS WORDCLOUD APP
-# Facebook | Reddit | Twitter (Free APIs)
+# Facebook | Reddit | Twitter (RSS-based)
 # =========================================
 
 import streamlit as st
-import requests
 import pandas as pd
+import feedparser
 from sklearn.feature_extraction.text import TfidfVectorizer
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
@@ -18,55 +18,32 @@ st.set_page_config(
 )
 
 st.title("📊 Trending Topics WordCloud Generator")
-st.caption("Free APIs • NLP (TF-IDF) • WordCloud Visualization")
+st.caption("RSS Feeds • NLP (TF-IDF) • WordCloud Visualization")
 
-# ---------------- DATA FETCH FUNCTIONS ----------------
+# ---------------- RSS FETCH FUNCTIONS ----------------
 
 def fetch_reddit_posts(query, limit):
-    url = "https://api.reddit.com/search"
-    headers = {"User-Agent": "Mozilla/5.0 (StreamlitApp/1.0)"}
-    params = {"q": query, "limit": min(limit, 100), "sort": "hot"}
-
-    r = requests.get(url, headers=headers, params=params)
-    r.raise_for_status()
-    data = r.json()
-
-    return [p["data"]["title"] for p in data["data"]["children"]]
-
+    feed = feedparser.parse(f"https://www.reddit.com/search.rss?q={query}")
+    return [entry.title for entry in feed.entries[:limit]]
 
 def fetch_facebook_posts(query, limit):
-    url = "https://api.reddit.com/search"
-    headers = {"User-Agent": "Mozilla/5.0 (StreamlitApp/1.0)"}
-    params = {"q": query, "limit": min(limit, 100), "sort": "top", "t": "week"}
-
-    r = requests.get(url, headers=headers, params=params)
-    r.raise_for_status()
-    data = r.json()
-
+    feed = feedparser.parse(f"https://www.reddit.com/search.rss?q={query}&sort=top")
     posts = []
-    for p in data["data"]["children"]:
-        title = p["data"]["title"]
-        body = p["data"].get("selftext", "")
-        posts.append(f"{title} {body}")
-
+    for entry in feed.entries[:limit]:
+        posts.append(entry.title + " " + entry.get("summary", ""))
     return posts
 
-
 def fetch_twitter_posts(query, limit):
-    url = "https://api.reddit.com/search"
-    headers = {"User-Agent": "Mozilla/5.0 (StreamlitApp/1.0)"}
-    params = {"q": query, "limit": min(limit, 100), "sort": "new"}
-
-    r = requests.get(url, headers=headers, params=params)
-    r.raise_for_status()
-    data = r.json()
-
-    return [p["data"]["title"] for p in data["data"]["children"]]
+    feed = feedparser.parse(f"https://www.reddit.com/search.rss?q={query}&sort=new")
+    return [entry.title for entry in feed.entries[:limit]]
 
 # ---------------- WORDCLOUD FUNCTION ----------------
 
 def generate_wordcloud_from_text(texts):
-    vectorizer = TfidfVectorizer(stop_words="english", max_features=200)
+    vectorizer = TfidfVectorizer(
+        stop_words="english",
+        max_features=200
+    )
     tfidf_matrix = vectorizer.fit_transform(texts)
 
     scores = tfidf_matrix.sum(axis=0).A1
@@ -81,7 +58,7 @@ def generate_wordcloud_from_text(texts):
 
     return wc
 
-# ---------------- COMMON UI FUNCTION ----------------
+# ---------------- COMMON UI ----------------
 
 def common_ui(platform):
     col1, col2 = st.columns([3, 1])
@@ -96,10 +73,10 @@ def common_ui(platform):
     with col2:
         limit = st.slider(
             "Number of posts",
-            min_value=500,
-            max_value=5000,
-            step=500,
-            value=1000,
+            min_value=50,
+            max_value=500,
+            step=50,
+            value=100,
             key=f"limit_{platform}"
         )
 
@@ -142,19 +119,19 @@ tab1, tab2, tab3 = st.tabs(["📘 Facebook", "👽 Reddit", "🐦 Twitter"])
 
 with tab1:
     st.subheader("📘 Facebook Trending Topics")
-    st.info("Simulated using public long-form discussion data")
+    st.info("Simulated using long-form public discussions (RSS)")
     common_ui("Facebook")
 
 with tab2:
     st.subheader("👽 Reddit Trending Topics")
-    st.info("Live Reddit public API")
+    st.info("Live Reddit RSS feed (no API, no auth)")
     common_ui("Reddit")
 
 with tab3:
     st.subheader("🐦 Twitter Trending Topics")
-    st.info("Simulated using fast-moving public discussions")
+    st.info("Simulated using fast-moving public RSS feeds")
     common_ui("Twitter")
 
 # ---------------- FOOTER ----------------
 st.markdown("---")
-st.caption("Built with Streamlit • NLP TF-IDF • WordCloud • Free APIs")
+st.caption("Built with Streamlit • TF-IDF • WordCloud • RSS Feeds")
